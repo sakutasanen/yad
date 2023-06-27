@@ -1,8 +1,15 @@
 import numpy as np
+from typing import Tuple
+from .gradient_function import GradientFunction
 
 class Tensor:
+    data:          np.array
+    shape:         Tuple[int]
+    requires_grad: bool
+    grad:          np.array
+    grad_fn:       GradientFunction
 
-    def __init__(self, data, requires_grad=False, ancestors=()):
+    def __init__(self, data, requires_grad=False):
         if isinstance(data, (int, float)):
             self.data  = data
             self.shape = 1
@@ -11,23 +18,22 @@ class Tensor:
             self.shape = self.data.shape
 
         self.requires_grad = requires_grad
-        self.grad          = 0 if self.requires_grad else None
-        self.ancestors     = set(ancestors)
-        self._backward     = lambda: None
+        self.grad          = 0 if self.requires_grad else None # TODO: It would be nice if initial value is None
+        self.grad_fn       = None
     
     def __add__(self, other):
         other = other if isinstance(other, Tensor) else Tensor(other)
 
-        out = Tensor(self.data + other.data, requires_grad=self.requires_grad or other.requires_grad, ancestors=(self, other))
+        out = Tensor(self.data + other.data, requires_grad=self.requires_grad or other.requires_grad)
 
-        def _backward():
+        def _grad_fn():
             if self.requires_grad:
                 self.grad += out.grad
             
             if other.requires_grad:
                 other.grad += out.grad
         
-        out._backward = _backward
+        out.grad_fn = GradientFunction(_grad_fn, (self.grad_fn, other.grad_fn))
 
         return out
     
@@ -46,9 +52,9 @@ class Tensor:
     def __mul__(self, other):
         other = other if isinstance(other, Tensor) else Tensor(other)
 
-        out = Tensor(self.data * other.data, requires_grad=self.requires_grad or other.requires_grad, ancestors=(self, other))
+        out = Tensor(self.data * other.data, requires_grad=self.requires_grad or other.requires_grad)
 
-        def _backward():
+        def _grad_fn():
             if self.requires_grad:
                 self.grad  += other.data * out.grad
 
@@ -56,7 +62,7 @@ class Tensor:
                 other.grad += self.data * out.grad
         
         if out.requires_grad:
-            out._backward = _backward
+            out.grad_fn = GradientFunction(_grad_fn, (self.grad_fn, other.grad_fn))
 
         return out
 
@@ -66,13 +72,13 @@ class Tensor:
     def __pow__(self, exponent):
         assert isinstance(exponent, (int, float)), "Only int/float powers are supported"
 
-        out = Tensor(self.data**exponent, requires_grad=self.requires_grad, ancestors=(self,))
+        out = Tensor(self.data**exponent, requires_grad=self.requires_grad)
 
-        def _backward():
+        def _grad_fn():
             self.grad += exponent * self.data**(exponent-1) * out.grad
         
         if out.requires_grad:
-            out._backward = _backward
+            out.grad_fn = GradientFunction(_grad_fn, (self.grad_fn,))
 
         return out
     
@@ -85,13 +91,13 @@ class Tensor:
     # TODO: Implement equality comparison
 
     def sum(self, axis=0):
-        out = Tensor(np.sum(self.data, axis=axis), requires_grad=self.requires_grad, ancestors=(self,))
+        out = Tensor(np.sum(self.data, axis=axis), requires_grad=self.requires_grad)
 
-        def _backward():
+        def _grad_fn():
             self.grad += out.grad
         
         if out.requires_grad:
-            out._backward = _backward
+            out.grad_fn = GradientFunction(_grad_fn, next_functions=(self.grad_fn,))
 
         return out
 
@@ -100,19 +106,24 @@ class Tensor:
         topo    = []
         visited = set()
 
-        def build_topo(v):
-            if v not in visited:
-                visited.add(v)
+        def build_topo(grad_fn):
+            if grad_fn not in visited:
+                visited.add(grad_fn)
 
-                for ancestor in v.ancestors:
-                    build_topo(ancestor)
+                if grad_fn is None:
+                    return
 
-                topo.append(v)
+                for next_grad_fn in grad_fn.next_functions:
+                    build_topo(next_grad_fn)
 
-        build_topo(self)
+                topo.append(grad_fn)
+
+        build_topo(self.grad_fn)
 
         # Go one variable at a time and apply the chain rule to get its gradient
         self.grad = np.ones_like(self.data)
 
-        for v in reversed(topo):
-            v._backward()
+        # TODO: Assign gradients to "zero" here?
+
+        for grad_fn in reversed(topo):
+            grad_fn()

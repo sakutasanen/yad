@@ -41,6 +41,7 @@ def test_vector_expression():
 
     y.backward()
 
+    assert x.grad is None
     assert np.all(y.data == np.array([1, -2, -2]))
     assert np.all(b.grad == np.array([-1, -1, -1]))
 
