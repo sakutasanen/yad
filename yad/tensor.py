@@ -2,6 +2,8 @@ import numpy as np
 from typing import Tuple
 from .gradient_function import GradientFunction
 
+# TODO: Only Tensors of floating point and complex dtype can require gradients
+
 class Tensor:
     data:          np.array
     shape:         Tuple[int]
@@ -9,10 +11,10 @@ class Tensor:
     grad:          np.array
     grad_fn:       GradientFunction
 
-    def __init__(self, data, requires_grad=False):
+    def __init__(self, data, requires_grad=False): # TODO: dtype?
         if isinstance(data, (int, float)):
             self.data  = data
-            self.shape = 1
+            self.shape = 1 # TODO
         else:
             self.data  = np.array(data)
             self.shape = self.data.shape
@@ -33,7 +35,8 @@ class Tensor:
             if other.requires_grad:
                 other.grad += out.grad
         
-        out.grad_fn = GradientFunction(_grad_fn, (self.grad_fn, other.grad_fn))
+        if out.requires_grad:
+            out.grad_fn = GradientFunction(_grad_fn, (self.grad_fn, other.grad_fn))
 
         return out
     
@@ -56,7 +59,7 @@ class Tensor:
 
         def _grad_fn():
             if self.requires_grad:
-                self.grad  += other.data * out.grad
+                self.grad += other.data * out.grad
 
             if other.requires_grad:
                 other.grad += self.data * out.grad
@@ -68,6 +71,30 @@ class Tensor:
 
     def __rmul__(self, other):
         return self * other
+
+    def __matmul__(self, other):
+        assert isinstance(other, Tensor), "Operands of matrix multiplication must be Tensor objects"
+
+        len_shape       = len(self.shape)
+        len_other_shape = len(other.shape)
+
+        assert len_shape <= 2 or len_other_shape <= 2, "Maximum supported dimensions of the matrix multiplication operands is 2"
+
+        out = Tensor(self.data @ other.data, requires_grad=self.requires_grad or other.requires_grad)
+
+        def _grad_fn():
+            if self.requires_grad:
+                self.grad = out.grad @ other.data.T
+
+            if other.requires_grad:
+                other.grad = self.data.T @ out.grad
+
+        if out.requires_grad:
+            out.grad_fn = GradientFunction(_grad_fn, (self.grad_fn, other.grad_fn))
+
+        return out
+
+    # TODO: Implement div
 
     def __pow__(self, exponent):
         assert isinstance(exponent, (int, float)), "Only int/float powers are supported"
