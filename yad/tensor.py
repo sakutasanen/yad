@@ -133,7 +133,7 @@ class Tensor:
         out = Tensor(np.sum(self.data, axis=axis), requires_grad=self.requires_grad)
 
         def _grad_fn():
-            self.grad += out.grad
+            self.grad += np.ones_like(self.data) * out.grad
         
         if out.requires_grad:
             out.grad_fn = GradientFunction(_grad_fn, next_functions=(self.grad_fn,))
