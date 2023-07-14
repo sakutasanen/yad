@@ -94,7 +94,6 @@ class Tensor:
 
         return out
 
-    # TODO: Implement div
 
     def __pow__(self, exponent):
         assert isinstance(exponent, (int, float)), "Only int/float powers are supported"
@@ -108,6 +107,9 @@ class Tensor:
             out.grad_fn = GradientFunction(_grad_fn, (self.grad_fn,))
 
         return out
+
+    # TODO: Implement div
+    # TODO: Implement equality comparison
     
     def __repr__(self):
         return f'Tensor(data={self.data}, grad={self.grad}, requires_grad={self.requires_grad})'
@@ -115,7 +117,17 @@ class Tensor:
     def __getitem__(self, idx):
         return self.data[idx]
 
-    # TODO: Implement equality comparison
+    @property
+    def T(self):
+        out = Tensor(self.data.T, requires_grad=self.requires_grad)
+
+        def _grad_fn():
+            self.grad = out.grad.T
+
+        if out.requires_grad:
+            out.grad_fn = GradientFunction(_grad_fn, (self.grad_fn,))
+
+        return out
 
     def sum(self, axis=0):
         out = Tensor(np.sum(self.data, axis=axis), requires_grad=self.requires_grad)

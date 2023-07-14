@@ -1,5 +1,4 @@
 import yad
-import numpy as np
 import torch
 
 def test_matrix_vector_mul():
@@ -20,7 +19,7 @@ def test_matrix_vector_mul():
 
     o_t.backward(gradient=torch.tensor([[1.0], [1.0]]))
 
-    assert (v.data == v_t.detach().numpy()).all()
+    assert (o.data == o_t.detach().numpy()).all()
     assert (v.grad == v_t.grad.numpy()).all()
 
 def test_matrix_matrix_mul():
@@ -41,6 +40,6 @@ def test_matrix_matrix_mul():
 
     o_t.backward(gradient=torch.tensor([[1.0, 1.0], [1.0, 1.0]]))
 
-    assert (o.data == o_t.detach().numpy()).all()
+    assert (o.data  == o_t.detach().numpy()).all()
     assert (m1.grad == m1_t.grad.numpy()).all()
     assert (m2.grad == m2_t.grad.numpy()).all()
