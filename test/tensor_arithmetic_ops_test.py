@@ -13,6 +13,16 @@ def test_multiplication():
     assert x1.grad == 1
     assert x2.grad == 4
 
+def test_division():
+    x = yad.Tensor([1], requires_grad=True)
+
+    y = x / 5
+
+    y.backward()
+
+    assert y[0]   == 0.2
+    assert x.grad == 0.2
+
 def test_pow():
     x = yad.Tensor([2], requires_grad=True)
 

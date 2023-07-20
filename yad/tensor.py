@@ -72,6 +72,12 @@ class Tensor:
     def __rmul__(self, other):
         return self * other
 
+    def __truediv__(self, other):
+        return self * other ** (-1)
+
+    def __rtruediv__(self, other):
+        return self ** (-1) * other
+
     def __matmul__(self, other):
         assert isinstance(other, Tensor), "Operands of matrix multiplication must be Tensor objects"
 
@@ -107,7 +113,6 @@ class Tensor:
 
         return out
 
-    # TODO: Implement div
     # TODO: Implement equality comparison
     
     def __repr__(self):
