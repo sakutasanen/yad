@@ -14,7 +14,7 @@ class Tensor:
     def __init__(self, data, requires_grad=False): # TODO: dtype?
         if isinstance(data, (int, float)):
             self.data  = data
-            self.shape = 1 # TODO
+            self.shape = ()
         else:
             self.data  = np.array(data)
             self.shape = self.data.shape
@@ -22,6 +22,43 @@ class Tensor:
         self.requires_grad = requires_grad
         self.grad          = 0 if self.requires_grad else None # TODO: It would be nice if initial value is None
         self.grad_fn       = None
+    
+    @staticmethod
+    def broadcast_axis(shape_left, shape_right):
+        """
+        Determine the axes along which broadcasting occurs between two shapes.
+
+        Args:
+            shape_left: Shape of the left tensor.
+            shape_right: Shape of the right tensor.
+
+        Returns:
+            A tuple of two tuples representing the axes along which broadcasting occurs.
+        """
+        if shape_left == shape_right:
+            return ((), ())
+        
+        # Determine the maximum number of dimensions between the two shapes
+        left_dim    = len(shape_left)
+        right_dim   = len(shape_right)
+        result_ndim = max(left_dim, right_dim)
+        
+        # Pad the shapes with 1s to match the maximum number of dimensions
+        left_padded  = (1, ) * (result_ndim - left_dim) + shape_left
+        right_padded = (1, ) * (result_ndim - right_dim) + shape_right
+        
+        # Store the axes along which broadcasting occurs
+        left_axes  = []
+        right_axes = []
+
+        # Iterate over padded shapes and compare corresponding axes
+        for axis_idx, (left_axis, right_axis) in enumerate(zip(left_padded, right_padded)):
+            if right_axis > left_axis:  # If the right axis is greater, broadcasting occurs for the left tensor
+                left_axes.append(axis_idx)
+            elif left_axis > right_axis:  # Broadcasting occurs for the right tensor
+                right_axes.append(axis_idx)
+        
+        return tuple(left_axes), tuple(right_axes)
     
     def __add__(self, other):
         other = other if isinstance(other, Tensor) else Tensor(other)
@@ -35,8 +72,20 @@ class Tensor:
             if other.requires_grad:
                 other.grad += out.grad
         
+        def _grad_fn_broadcast():
+            axis_self, axis_other = self.broadcast_axis(self.shape, other.shape)
+
+            if self.requires_grad:
+                self.grad += np.reshape(np.sum(out.grad, axis=axis_self), self.shape)
+            
+            if other.requires_grad:
+                other.grad += np.reshape(np.sum(out.grad, axis=axis_other), other.shape)
+        
         if out.requires_grad:
-            out.grad_fn = GradientFunction(_grad_fn, (self.grad_fn, other.grad_fn))
+            if self.shape == other.shape:
+                out.grad_fn = GradientFunction(_grad_fn, (self.grad_fn, other.grad_fn))
+            else:
+                out.grad_fn = GradientFunction(_grad_fn_broadcast, (self.grad_fn, other.grad_fn))
 
         return out
     
