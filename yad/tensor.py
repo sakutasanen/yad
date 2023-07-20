@@ -94,7 +94,6 @@ class Tensor:
 
         return out
 
-
     def __pow__(self, exponent):
         assert isinstance(exponent, (int, float)), "Only int/float powers are supported"
 
@@ -135,6 +134,60 @@ class Tensor:
         def _grad_fn():
             self.grad += np.ones_like(self.data) * out.grad
         
+        if out.requires_grad:
+            out.grad_fn = GradientFunction(_grad_fn, next_functions=(self.grad_fn,))
+
+        return out
+
+    def log(self):
+        """
+        Compute the natural logarithm of each element in the Tensor.
+
+        Returns:
+            The resulting Tensor object representing the logarithm.
+        """
+
+        out = Tensor(np.log(self.data), requires_grad=self.requires_grad)
+
+        def _grad_fn():
+            self.grad += out.grad / self.data
+
+        if out.requires_grad:
+            out.grad_fn = GradientFunction(_grad_fn, next_functions=(self.grad_fn,))
+
+        return out
+
+    def relu(self):
+        """
+        Apply the Rectified Linear Unit (ReLU) activation function element-wise.
+
+        Returns:
+            The resulting Tensor object after applying ReLU.
+        """
+
+        out = Tensor(np.maximum(0, self.data), requires_grad=self.requires_grad)
+
+        def _grad_fn():
+            self.grad += (self.data > 0) * out.grad
+
+        if out.requires_grad:
+            out.grad_fn = GradientFunction(_grad_fn, next_functions=(self.grad_fn,))
+
+        return out
+
+    def sigmoid(self):
+        """
+        Apply the sigmoid activation function element-wise.
+
+        Returns:
+            The resulting Tensor object after applying the sigmoid function.
+        """
+
+        out = Tensor(np.tanh(self.data * 0.5) * 0.5 + 0.5, requires_grad=self.requires_grad)
+
+        def _grad_fn():
+            self.grad += out.data * (1 - out.data) * out.grad
+
         if out.requires_grad:
             out.grad_fn = GradientFunction(_grad_fn, next_functions=(self.grad_fn,))
 
